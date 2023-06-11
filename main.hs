@@ -1,36 +1,41 @@
+import Control.Monad.State
 import RoseModule
+import GameStateOp
+import GameStateHistory
+import Field
 
-data Player = Player1 | Player2 deriving (Show)
-data GameState a = GameState Player (Rose a) deriving (Show)
-data Move a = Move Player a deriving (Show)
+data Board a = Board [[a]] (Int, Int) deriving (Show)
 
-newtype GameStateOp a = GameStateOp { runGameStateOp :: GameState a -> (a, GameState a) }
+data Player = Player1 | Player2 deriving (Eq, Show)
+data GameState a = GameState Player (Board a) deriving (Show)
+data Move = Move Player (Int, Int) deriving (Show)
 
-instance Functor GameStateOp where
-  fmap f (GameStateOp op) = GameStateOp (\s -> let (x, s') = op s in (f x, s'))
+startBoard :: Board Field
+startBoard = Board [[Empty, Empty, Empty], [Empty, Empty, Empty], [Empty, Empty, Empty]] (3, 3)
 
-instance Applicative GameStateOp where
-  pure x = GameStateOp (\s -> (x, s))
-  GameStateOp f <*> GameStateOp x = GameStateOp (\s -> let (g, s') = f s; (y, s'') = x s' in (g y, s''))
+startState :: GameState Field
+startState = GameState Player1 startBoard
 
-instance Monad GameStateOp where
-  return = pure
-  GameStateOp x >>= f = GameStateOp (\s -> let (y, s') = x s; GameStateOp op = f y in op s')
+printBoard :: Board Field -> IO ()
+printBoard (Board board (rows, cols)) = do
+	mapM_ printRow board
+	where
+		printRow row = do
+			putStr $ concat $ map (\x -> "|" ++ show x) row
+			putStrLn "|"
+			-- putStrLn ""
 
--- newtype GameStateOpHistory a = GameStateOpHistory { runGameStateOpHistory :: [GameState a] -> ([GameState a], a) }
+checkValidMove :: GameState Field -> Move -> Bool
+checkValidMove (GameState player (Board board (rows, cols))) (Move movePlayer (row, col)) = 
+	(row >= 0) && (row < rows) && (col >= 0) && (col < cols) && ((board !! row) !! col == Empty) && player == movePlayer
 
--- instance Functor GameStateOpHistory where
---   fmap f (GameStateOpHistory op) = GameStateOpHistory (\history -> let (newHistory, x) = op history in (newHistory, f x))
-
--- instance Applicative GameStateOpHistory where
---   pure x = GameStateOpHistory (\history -> (history, x))
---   GameStateOpHistory f <*> GameStateOpHistory x = GameStateOpHistory (\history -> let (history', g) = f history; (history'', y) = x history' in (history'', g y))
-
--- instance Monad GameStateOpHistory where
---   return = pure
---   GameStateOpHistory x >>= f = GameStateOpHistory (\history -> let (history', y) = x history; GameStateOpHistory op = f y in op history')
-
+returnAllValidMoves :: GameState Field -> [Move]
+returnAllValidMoves (GameState player (Board board (rows, cols))) = 
+	[Move player (row, col) | row <- [0..(rows - 1)], col <- [0..(cols - 1)], checkValidMove gameState (Move player (row, col))]
+	where
+		gameState = GameState player (Board board (rows, cols))
 
 -- main
 main = do
-  putStrLn "Hello World!"
+	printBoard startBoard
+	-- [putStrLn move | move <- (returnAllValidMoves startState)]
