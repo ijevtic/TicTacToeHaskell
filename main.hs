@@ -1,4 +1,6 @@
 import Control.Monad.State
+import Text.Parsec
+import Data.Char (ord)
 import RoseModule
 import GameStateOp
 import GameStateHistory
@@ -13,8 +15,17 @@ data GameState a = GameState Player (Board a)
 instance Show Field => Show (GameState Field) where
 	show (GameState player board) = show player ++ "\n" ++ show board
 
+startRow = [EmptyF, EmptyF, EmptyF]
+
+makeBoard :: Int -> Int -> [[Field]] -> Board Field
+makeBoard rowCnt colCnt rows = Board rows (rowCnt, colCnt)
+
+makeState :: Player -> Board Field -> GameState Field
+makeState player board = GameState player board
+
 startBoard :: Board Field
-startBoard = Board [[Empty, Empty, Empty], [Empty, Empty, Empty], [Empty, Empty, Empty]] (3, 3)
+startBoard = makeBoard 3 3 [startRow, startRow, startRow]
+-- startBoard = Board [[EmptyF, EmptyF, EmptyF], [EmptyF, EmptyF, EmptyF], [EmptyF, EmptyF, EmptyF]] (3, 3)
 
 startState :: GameState Field
 startState = GameState Player1 startBoard
@@ -27,7 +38,7 @@ getPlayer (GameState player _) = player
 
 checkValidMove :: GameState Field -> Move -> Bool
 checkValidMove (GameState player (Board board (rows, cols))) (Move movePlayer (row, col)) = 
-	(row >= 0) && (row < rows) && (col >= 0) && (col < cols) && ((board !! row) !! col == Empty) && player == movePlayer
+	(row >= 0) && (row < rows) && (col >= 0) && (col < cols) && ((board !! row) !! col == EmptyF) && player == movePlayer
 
 isGameOver :: GameState Field -> Bool
 isGameOver (GameState _ board) = checkFinish board finishPatterns || checkFullBoard board
@@ -77,7 +88,7 @@ initialize = (GameStateHistory (\gameState -> (isGameOver gameState, [gameState]
 
 -- test
 testBoard :: Board Field
-testBoard = Board [[X, O, O], [X, X, O], [Empty, X, Empty]] (3, 3)
+testBoard = Board [[X, O, O], [X, X, O], [EmptyF, X, EmptyF]] (3, 3)
 testState :: GameState Field
 testState = GameState Player2 testBoard
 
@@ -93,19 +104,102 @@ testApplyMoves = do
 	applyMove (2, 0)
 	-- applyMove (0, 2)
 
--- main
-main = do
-	let
-		(finished, finalState) = runGameStateOp testApplyMoves startState
+testApplyMovesH = do
+	applyMoveH (0, 0)
+	applyMoveH (0, 1)
+	applyMoveH (0, 2)
+	applyMoveH (1, 0)
+	applyMoveH (1, 1)
+	applyMoveH (1, 2)
+	applyMoveH (2, 2)
+	applyMoveH (2, 0)
+	-- applyMoveH (0, 2)
 
-	printBoard testBoard
+
+readBoard :: Parsec String (GameState Field) (GameState Field)
+readBoard = do
+	row1 <- readRow
+	row2 <- readRow
+	row3 <- readRow
+	-- row2 <- [EmptyF, EmptyF, EmptyF]
+	-- row3 <- [EmptyF, EmptyF, EmptyF]
+	-- row2 <- readRow
+	-- row3 <- readRow
+	setState (makeState Player1 (makeBoard 3 3 [row1, row2, row3]))
+	getState
+
+readField :: Parsec String (GameState Field) Field
+readField = do
+	spaces
+	val <- anyChar
+	spaces
+	char '|'
+	case val of
+		'X' -> return X
+		'O' -> return O
+		'_' -> return EmptyF
+		_ -> fail "invalid field"
+
+breaker :: Parsec String (GameState Field) ()
+breaker = spaces >> char '|' >> spaces
+
+newLine :: Parsec String (GameState Field) ()
+newLine = spaces >> char '\n' >> spaces
+
+readRow :: Parsec String (GameState Field) [Field]
+readRow = do
+		spaces
+		char '|'
+		f1 <- readField
+		f2 <- readField
+		f3 <- readField
+		-- fields <- between breaker breaker (sepBy readField breaker)
+		-- newLine
+		-- return fields
+		return [f1, f2, f3]
+
+readPlayer :: Parsec String (GameState Field) Player
+readPlayer = do
+	spaces
+	p <- anyChar
+	if p == 'X' then return Player1 else return Player2
+
+readMove :: Parsec String (GameState Field) Move
+readMove = do
+				spaces
+				player <- readPlayer
+				spaces
+				char '('
+				row <- digit
+				char ','
+				col <- digit
+				char ')'
+				spaces
+				return ((Move player (ord row - 48, ord col - 48)))
+
+readMoves :: Parsec String (GameState Field) [Move]
+readMoves = do
+				moves <- many readMove
+				return moves
+
+
+-- main
+{-main = do
+	let
+		(finished, finalStates) = runGameStateHistory testApplyMovesH startState
+
+	printBoard startBoard
 	putStrLn "---"
 	--get board from state
 	
 	-- printRoseTree (makeRoseTree testState) 0
 	-- printRoseTree (makeRoseTree startState) 0
 
-	printBoard $ getBoard $ finalState
+	-- print this
+	mapM_ (\state -> putStrLn $ show state ++ "\n") finalStates
+	-- map (show . getBoard) finalStates
+	
+	-- printBoard $ getBoard $ finalState
 	putStrLn $ show finished
 
 	-- putStrLn $ "num: " ++ show (leavesCount (makeRoseTree startState))
@@ -115,3 +209,19 @@ main = do
 	-- printMoves [move | move <- (returnAllValidMoves testState)]
 	-- putStrLn $ show $ isGameOver testState
 	-- [putStrLn move | move <- (returnAllValidMoves startState)]
+
+-}
+play :: Parsec String (GameState Field) (GameState Field, [Move])
+play = do
+	readBoard
+	moves <- readMoves
+	state <- getState
+	return (state, moves)
+
+main = do
+	contents <- readFile "file.txt"
+	case runParser play startState "file.txt" contents of
+		Left err -> print err
+		Right (state, moves) -> do
+			printBoard $ getBoard state
+			printMoves moves

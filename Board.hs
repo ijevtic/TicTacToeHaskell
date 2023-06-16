@@ -8,7 +8,7 @@ data Board a = Board [[a]] (Int, Int)
 checkFinish :: Board Field -> [[(Int, Int)]] -> Bool
 checkFinish (Board board (rows, cols)) [] = False
 checkFinish (Board board (rows, cols)) (pattern: patterns) = 
-	(((board !! x1) !! y1) == ((board !! x2) !! y2) && ((board !! x2) !! y2) == ((board !! x3) !! y3) && ((board !! x3) !! y3) /= Empty)
+	(((board !! x1) !! y1) == ((board !! x2) !! y2) && ((board !! x2) !! y2) == ((board !! x3) !! y3) && ((board !! x3) !! y3) /= EmptyF)
      || (checkFinish (Board board (rows, cols)) patterns)
 	where
 		(x1,y1) = pattern !! 0
@@ -16,7 +16,7 @@ checkFinish (Board board (rows, cols)) (pattern: patterns) =
 		(x3,y3) = pattern !! 2
 
 checkFullBoard :: Board Field -> Bool
-checkFullBoard (Board board (rows, cols)) = isListEmpty [field | row <- board, field <- row, field == Empty]
+checkFullBoard (Board board (rows, cols)) = isListEmpty [field | row <- board, field <- row, field == EmptyF]
 
 instance Show Field => Show (Board Field) where
     show (Board board (rows, cols)) =
