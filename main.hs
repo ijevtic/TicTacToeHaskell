@@ -211,8 +211,8 @@ readMoves = do
 	-- [putStrLn move | move <- (returnAllValidMoves startState)]
 
 -}
-play :: Parsec String (GameState Field) (GameState Field, [Move])
-play = do
+getData :: Parsec String (GameState Field) (GameState Field, [Move])
+getData = do
 	readBoard
 	moves <- readMoves
 	state <- getState
@@ -220,7 +220,7 @@ play = do
 
 main = do
 	contents <- readFile "file.txt"
-	case runParser play startState "file.txt" contents of
+	case runParser getData startState "file.txt" contents of
 		Left err -> print err
 		Right (state, moves) -> do
 			printBoard $ getBoard state
