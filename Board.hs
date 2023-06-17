@@ -2,7 +2,7 @@ module Board where
 import Field
 import Util
 import Data.List (intercalate)
-data Board a = Board [[a]] (Int, Int)
+data Board a = Board [[a]] (Int, Int) | InvalidBoard
 
 
 checkFinish :: Board Field -> [[(Int, Int)]] -> Bool
@@ -18,17 +18,29 @@ checkFinish (Board board (rows, cols)) (pattern: patterns) =
 checkFullBoard :: Board Field -> Bool
 checkFullBoard (Board board (rows, cols)) = isListEmpty [field | row <- board, field <- row, field == EmptyF]
 
-instance Show Field => Show (Board Field) where
-    show (Board board (rows, cols)) =
-        let formattedRows = map formatRow board
-            separator = ""
-            formattedBoard = intercalate separator formattedRows
-        in formattedBoard
-        where
-            formatRow row = '|' : intercalate "|" (map show row) ++ "|\n"
+-- instance Show Field => Show (Board Field) where
+--     show (Board board (rows, cols)) =
+--         let formattedRows = map formatRow board
+--             separator = ""
+--             formattedBoard = intercalate separator formattedRows
+--         in formattedBoard
+--         where
+--             formatRow row = '|' : intercalate "|" (map show row) ++ "|\n"
+-- 		show InvalidBoard = "Invalid board"
+
+instance Show a => Show (Board a) where
+  show (Board board (rows, cols)) =
+    let formattedRows = map formatRow board
+        formattedBoard = intercalate "" formattedRows
+		in formattedBoard
+    where
+      formatRow row = '|' : intercalate "|" (map show row) ++ "|\n"
+
+  show InvalidBoard = "Invalid board"		
 
 -- nepotrebno vrv   
 printBoard :: Board Field -> IO ()
+printBoard InvalidBoard = putStrLn "Invalid board"
 printBoard (Board board (rows, cols)) = do
 	mapM_ printRow board
 	where

@@ -10,10 +10,16 @@ import Move
 import Board
 import Util
 
-data GameState a = GameState Player (Board a)
+data GameState a = GameState Player (Board a) | Invalid
 
 instance Show Field => Show (GameState Field) where
 	show (GameState player board) = show player ++ "\n" ++ show board
+
+
+instance Eq Field => Eq (GameState Field) where
+	Invalid == Invalid = True
+	-- (GameState player1 board1) == (GameState player2 board2) = player1 == player2 && board1 == board2
+	_ == _ = False
 
 startRow = [EmptyF, EmptyF, EmptyF]
 
@@ -31,6 +37,7 @@ startState :: GameState Field
 startState = GameState Player1 startBoard
 
 getBoard :: GameState Field -> Board Field
+getBoard Invalid = InvalidBoard
 getBoard (GameState _ board) = board
 
 getPlayer :: GameState Field -> Player
@@ -41,6 +48,7 @@ checkValidMove (GameState player (Board board (rows, cols))) (Move movePlayer (r
 	(row >= 0) && (row < rows) && (col >= 0) && (col < cols) && ((board !! row) !! col == EmptyF) && player == movePlayer
 
 isGameOver :: GameState Field -> Bool
+isGameOver Invalid = True
 isGameOver (GameState _ board) = checkFinish board finishPatterns || checkFullBoard board
 
 returnAllValidMoves :: GameState Field -> [Move]
@@ -56,7 +64,8 @@ applyRow row rowNumber (Move movePlayer (rowInd, colInd)) =
 
 makeMove :: GameState Field -> Move -> GameState Field
 makeMove (GameState player (Board board (rows, cols))) move = 
-	GameState (nextPlayer player) (Board newBoard (rows, cols))
+	if checkValidMove (GameState player (Board board (rows, cols))) move == False then Invalid
+		else GameState (nextPlayer player) (Board newBoard (rows, cols))
 	where
 		newBoard = [(applyRow (board !! numRow) numRow move) | numRow <- [0..(rows - 1)]]
 
@@ -76,6 +85,13 @@ applyMove (x, y) = GameStateOp (\gameState -> let
 	newGameState = makeMove gameState (Move (getPlayer gameState) (x, y))
 	in
 		(isGameOver newGameState, newGameState))
+
+applyMove_ :: Move -> GameStateOp (GameState Field) Bool
+applyMove_ move = GameStateOp (\gameState -> let
+	newGameState = if gameState == Invalid then Invalid else makeMove gameState move
+	in
+		(isGameOver newGameState, newGameState))
+
 
 applyMoveH :: (Int, Int) -> GameStateHistory (GameState Field) Bool
 applyMoveH (x, y) = GameStateHistory (\gameState -> let
@@ -183,34 +199,11 @@ readMoves = do
 				return moves
 
 
--- main
-{-main = do
-	let
-		(finished, finalStates) = runGameStateHistory testApplyMovesH startState
 
-	printBoard startBoard
-	putStrLn "---"
-	--get board from state
-	
-	-- printRoseTree (makeRoseTree testState) 0
-	-- printRoseTree (makeRoseTree startState) 0
+applyMoves :: [GameStateOp (GameState Field) Bool] -> GameState Field -> (Bool, GameState Field) 
+applyMoves [] state = (isGameOver state, state)
+applyMoves (x:xs) state = runGameStateOp (foldl (\acc elem -> acc >> elem) x xs) state
 
-	-- print this
-	mapM_ (\state -> putStrLn $ show state ++ "\n") finalStates
-	-- map (show . getBoard) finalStates
-	
-	-- printBoard $ getBoard $ finalState
-	putStrLn $ show finished
-
-	-- putStrLn $ "num: " ++ show (leavesCount (makeRoseTree startState))
-
-
-	-- printBoard $ getBoard (makeMove testState (Move Player1 (0, 0)))
-	-- printMoves [move | move <- (returnAllValidMoves testState)]
-	-- putStrLn $ show $ isGameOver testState
-	-- [putStrLn move | move <- (returnAllValidMoves startState)]
-
--}
 getData :: Parsec String (GameState Field) (GameState Field, [Move])
 getData = do
 	readBoard
@@ -223,5 +216,15 @@ main = do
 	case runParser getData startState "file.txt" contents of
 		Left err -> print err
 		Right (state, moves) -> do
+			putStrLn "Start board"
 			printBoard $ getBoard state
+			putStrLn "Moves"
 			printMoves moves
+			let
+				(isOver, endState) = (applyMoves (map (\move -> applyMove_ move) moves) state)
+			putStrLn "End board"
+			printBoard $ getBoard endState
+			putStrLn $ show isOver
+			-- putStrLn $ show $ isGameOver state
+			-- printBoard $ getBoard state
+			-- printMoves moves
